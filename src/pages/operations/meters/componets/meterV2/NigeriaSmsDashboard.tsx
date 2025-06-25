@@ -8,11 +8,24 @@ import CustomToolbar from "./CustomToolbar";
 import { Meter } from "../../../../../interface/meterTypes";
 import { getStyles } from "../../../../../styles/component/MeterV2Table.styles";
 import { Customer } from "../../../../../interface/Customer";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../../../../../store";
 import { toast } from "react-toastify";
-import { fetchFileData } from "./fileData";
+import axios from "axios";
+
+// Define the type for the file rows earlier
+type FileRow = {
+  id: string;
+  name: string;
+  fileName: string;
+  status: string;
+  date: string;
+  SuccessCount: number;
+  FailureCount: number;
+  TotalRecords: number;
+  FileURL: string;
+};
 
 const NigeriaSmsDashboard = ({
   data,
@@ -34,18 +47,29 @@ const NigeriaSmsDashboard = ({
 
   // Add local state for searchQuery
   const [searchQuery, setSearchQuery] = useState("");
+  const [fileData, setFileData] = useState<FileRow[]>([]); // Ensure it's an array
+  const [error, setError] = useState("");
 
-  type FileRow = {
-    id: string;
-    name: string;
-    fileName: string;
-    status: string;
-    date: string;
-    SuccessCount: number;
-    FailureCount: number;
-    TotalRecords: number;
-    FileURL: string;
-  };
+  useEffect(() => {
+    const fetchDataFromAPI = async () => {
+      try {
+        const response = await axios.get("http://localhost:3001/api/nigeria/notifications");
+
+        // Check if the 'Data' field exists and is an array
+        const fetchedData = response.data?.Data;
+        if (Array.isArray(fetchedData)) {
+          setFileData(fetchedData); // Update state only if it's an array
+        } else {
+          throw new Error("Data is not an array.");
+        }
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Failed to load data.");
+      }
+    };
+
+    fetchDataFromAPI();
+  }, []); // Empty dependency array to run only once on mount
 
   const columns: GridColDef<FileRow>[] = [
     {
@@ -123,7 +147,7 @@ const NigeriaSmsDashboard = ({
   ];
 
   // Filter data based on searchQuery (case-insensitive, on name and fileName)
-  const filteredRows = (fetchFileData ?? []).filter((row) => {
+  const filteredRows = fileData.filter((row) => {
     const query = searchQuery?.toLowerCase() || "";
     return (
       row.name.toLowerCase().includes(query) ||
@@ -133,6 +157,8 @@ const NigeriaSmsDashboard = ({
 
   return (
     <Box sx={styles.container}>
+      {error && <div style={{ color: "red" }}>{error}</div>} {/* Error display */}
+      
       <CustomToolbar
         onUpload={triggerUpload}
         searchQuery={searchQuery}
@@ -154,18 +180,18 @@ const NigeriaSmsDashboard = ({
       </Box>
 
       <Box sx={styles.paginationContainer}>
-  <NeuronPagination
-    currentPage={current || 1}  // Default to 1 if current is undefined or NaN
-    totalItems={filteredRows.length || 0}  // Use the length of the filteredRows array
-    pageSize={pageSize || 10}  // Default to 10 if pageSize is undefined or NaN
-    onPageChange={(page) => setCurrent(page)}
-    onPageSizeChange={(size) => {
-      setPageSize(size);
-      setCurrent(1); // Reset to the first page when page size changes
-    }}
-    onReload={fetchData}
-  />
-</Box>
+        <NeuronPagination
+          currentPage={current || 1} // Default to 1 if current is undefined or NaN
+          totalItems={filteredRows.length || 0} // Use the length of the filteredRows array
+          pageSize={pageSize || 10} // Default to 10 if pageSize is undefined or NaN
+          onPageChange={(page) => setCurrent(page)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrent(1); // Reset to the first page when page size changes
+          }}
+          onReload={fetchData}
+        />
+      </Box>
     </Box>
   );
 };
